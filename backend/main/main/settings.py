@@ -18,7 +18,10 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
-# #! TO HANDLE IF DB not connected
+
+CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOW_CREDENTIALS = True
+
 # Application definition
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -30,6 +33,7 @@ INSTALLED_APPS = [
     # 3rd party
     "corsheaders",
     "rest_framework",
+    "rest_framework.authtoken",
     # local
     "auth_user",
 ]
@@ -42,6 +46,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # 3rd party
+    "corsheaders.middleware.CorsMiddleware",
 ]
 
 ROOT_URLCONF = "main.urls"
@@ -124,3 +130,6 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+APPEND_SLASH = False
+
+AUTH_USER_MODEL = "auth_user.User"
