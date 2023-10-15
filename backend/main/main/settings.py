@@ -76,11 +76,11 @@ WSGI_APPLICATION = "main.wsgi.app"
 
 
 DATABASES = {
-    "sqlite": {
+    "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
     },
-    "default": {
+    "default_db": {
         "ENGINE": "django.db.backends.postgresql_psycopg2",
         "NAME": os.environ.get("POSTGRES_DB_NAME"),
         "USER": os.environ.get("POSTGRES_USER"),
@@ -135,6 +135,6 @@ MEDIA_ROOT = BASE_DIR / "media"
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-APPEND_SLASH = False
+# APPEND_SLASH = False
 
 AUTH_USER_MODEL = "auth_user.User"
