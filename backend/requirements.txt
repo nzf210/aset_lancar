@@ -8,6 +8,7 @@ nanoid==2.0.0
 psycopg==3.1.12
 pycparser==2.21
 PyJWT==2.8.0
+python==3.11.5
 python-dotenv==1.0.0
 pytz==2023.3.post1
 sqlparse==0.4.4
