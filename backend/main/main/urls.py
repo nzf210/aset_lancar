@@ -19,6 +19,5 @@ urlpatterns = [
     path("refresh", views.refresh_jwt, name="refresh_jwt"),
 ]
 
-
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_URL)
+urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
