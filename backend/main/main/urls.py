@@ -11,7 +11,6 @@ from django.conf.urls.static import static
 from django.conf import settings
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
     re_path("auth/", include("auth_user.urls")),
     re_path("login", views.LoginAuthUser.as_view(), name="auth_user"),
     re_path("register", views.RegisterAuthUser.as_view(), name="register_user"),
@@ -22,3 +21,6 @@ urlpatterns = [
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_URL)
+
+if settings.DEBUG:
+    urlpatterns += path("admin/", admin.site.urls)
