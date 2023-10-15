@@ -68,7 +68,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "main.wsgi.app"
+WSGI_APPLICATION = "main.asgi.app"
 
 
 # Database
@@ -76,11 +76,11 @@ WSGI_APPLICATION = "main.wsgi.app"
 
 
 DATABASES = {
-    "default": {
+    "default_db": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
     },
-    "default_db": {
+    "default": {
         "ENGINE": "django.db.backends.postgresql_psycopg2",
         "NAME": os.environ.get("POSTGRES_DB_NAME"),
         "USER": os.environ.get("POSTGRES_USER"),
