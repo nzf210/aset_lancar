@@ -1,10 +1,18 @@
 import hashlib
-from django.forms import ValidationError
 from rest_framework import serializers
 from .models import User
 
 
 class AuthUserSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(required=False)
+    last_name = serializers.CharField(required=False)
+    avatar = serializers.CharField(required=False)
+    username = serializers.CharField(required=False)
+    gol = serializers.CharField(required=False)
+    jabatan = serializers.CharField(required=False)
+    nip = serializers.CharField(required=False)
+    password = serializers.CharField(required=False)
+
     class Meta:
         model = User
         fields = (
@@ -15,6 +23,9 @@ class AuthUserSerializer(serializers.ModelSerializer):
             "last_name",
             "avatar",
             "email",
+            "nip",
+            "jabatan",
+            "gol",
             "type",
             "role",
         )
@@ -31,14 +42,14 @@ class AuthUserSerializer(serializers.ModelSerializer):
 
 
 class AuthUserUpdateSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(required=False)
-    email = serializers.EmailField(required=False)
-    password = serializers.CharField(required=False)
     first_name = serializers.CharField(required=False)
     last_name = serializers.CharField(required=False)
     avatar = serializers.CharField(required=False)
-    type = serializers.CharField(required=False)
-    role = serializers.CharField(required=False)
+    username = serializers.CharField(required=False)
+    gol = serializers.CharField(required=False)
+    jabatan = serializers.CharField(required=False)
+    nip = serializers.CharField(required=False)
+    password = serializers.CharField(required=False)
 
     class Meta:
         model = User
@@ -50,8 +61,9 @@ class AuthUserUpdateSerializer(serializers.ModelSerializer):
             "last_name",
             "avatar",
             "email",
-            "created_at",
-            "updated_at",
+            "nip",
+            "jabatan",
+            "gol",
             "type",
             "role",
         )

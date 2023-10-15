@@ -12,10 +12,10 @@ from django.conf import settings
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    re_path("auth", include("auth_user.urls")),
+    re_path("auth/", include("auth_user.urls")),
     re_path("login", views.LoginAuthUser.as_view(), name="auth_user"),
     re_path("register", views.RegisterAuthUser.as_view(), name="register_user"),
-    re_path("logout", views.LogutAuthUser.as_view(), name="logout"),
+    path("logout", views.logout, name="logout"),
     path("refresh", views.refresh_jwt, name="refresh_jwt"),
 ]
 

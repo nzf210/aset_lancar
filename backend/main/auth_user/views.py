@@ -1,12 +1,13 @@
+import json
+import os
 import re
 from django.http import JsonResponse
+import jwt
 from rest_framework.response import Response
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.views import APIView
 from rest_framework.decorators import (
     api_view,
-    authentication_classes,
-    permission_classes,
 )
 from rest_framework import status
 from .models import User
@@ -14,8 +15,9 @@ from .serializers import AuthUserSerializer, AuthUserUpdateSerializer
 import hashlib
 from .utils.jwt import TokenManager
 from .utils.validate_req_jwt import validate_access_token
-from rest_framework.authentication import TokenAuthentication
-from rest_framework.permissions import IsAuthenticated
+from .utils.validate_jwt_token import validate_jwt_token
+from django.db import IntegrityError
+from django.http import HttpResponse
 
 
 def validate_email(value: str) -> bool:
@@ -26,65 +28,16 @@ def validate_email(value: str) -> bool:
         return True
 
 
-def validate_email_username(value: str) -> str:
-    user = (
-        User.objects.filter(
-            username=value,
-        )
-        .exclude(username=value)
-        .exists()
-    )
-    print(user)
-    if user:
-        return "username"
-    email = (
-        User.objects.filter(
-            email=value,
-        )
-        .exclude(email=value)
-        .exists()
-    )
-    print(email)
-    if email or validate_email(value):
-        return "email"
-    return ""
-
-
-@api_view(["GET", "POST"])
-@validate_access_token
+@api_view(["GET"])
 def get_users(request):
     if request.method == "GET":
         users = User.objects.all()
         serializer = AuthUserSerializer(users, many=True)
         return JsonResponse(serializer.data, safe=False)
 
-    elif request.method == "POST":
-        serializer = AuthUserSerializer(data=request.data)
-        if validate_email_username(request.data.get("username")) == "username":
-            return JsonResponse(
-                {"message": "Invalid username or already exist"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if validate_email_username(request.data.get("email")) == "email":
-            return JsonResponse(
-                {"message": "Invalid email or already exist"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
-        if serializer.is_valid():
-            password = serializer.validated_data.get("password")
-            hashed_password = hashlib.sha256(password.encode()).hexdigest()
-            serializer.save(password=hashed_password)
-            return JsonResponse(serializer.data, status=status.HTTP_201_CREATED)
-        return JsonResponse(
-            {"message": "Invalid email or password", "errors": serializer.errors},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-
-@api_view(["GET", "PUT", "DELETE"])
-@authentication_classes([TokenAuthentication])
-@permission_classes([IsAuthenticated])
+@api_view(["GET", "PATCH", "DELETE"])
+@validate_access_token
 def get_user(request, pk):
     try:
         user = User.objects.get(pk=pk)
@@ -95,30 +48,27 @@ def get_user(request, pk):
         serializer = AuthUserSerializer(user)
         return JsonResponse(serializer.data, safe=False)
 
-    if request.method == "PUT":
-        serializer = AuthUserUpdateSerializer(user, data=request.data)
-
-        if validate_email_username(request.data.get("username")) == "username":
-            return JsonResponse(
-                {"message": "Invalid username or already exist"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if validate_email_username(request.data.get("email")) == "email":
-            return JsonResponse(
-                {"message": "Invalid email or already exist"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+    if request.method == "PATCH":
+        serializer = AuthUserUpdateSerializer(user, data=request.data, partial=True)
         if serializer.is_valid():
-            is_password = request.data.get("password")
-            if is_password:
-                password = serializer.validated_data.get("password")
-                hashed_password = hashlib.sha256(password.encode()).hexdigest()
-                serializer.save(password=hashed_password)
-            else:
+            try:
+                if "password" in request.data:
+                    password = request.data.get("password")
+                    hashed_password = hashlib.sha256(password.encode()).hexdigest()
+                    serializer.validated_data["password"] = hashed_password
+
                 serializer.save()
-            return JsonResponse(serializer.data, status=status.HTTP_202_ACCEPTED)
-        return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse(serializer.data, status=status.HTTP_200_OK)
+
+            except IntegrityError:
+                return JsonResponse(
+                    {"message": "Username or email already exists."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        return JsonResponse(
+            {"errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
+        )
 
     if request.method == "DELETE":
         user.delete()
@@ -129,104 +79,95 @@ def get_user(request, pk):
 
 class RegisterAuthUser(APIView):
     def post(self, request):
-        serializer = AuthUserSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        validate_access_token(self)
+        try:
+            serializer = AuthUserSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except IntegrityError as e:
+            return JsonResponse(
+                {"message": f"already exists, error is {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 class LoginAuthUser(APIView):
     def post(self, request):
-        username = request.data.get("username")
-        password = request.data.get("password")
-        user = User.objects.filter(
-            username=username,
-        ).first()
+        try:
+            username = request.data.get("username")
+            password = request.data.get("password")
+            user = User.objects.get(username=username)
 
-        if not user or not user.check_password(raw_password=password):
-            raise AuthenticationFailed("pengguna atau password salah")
+            if not user or not user.check_password(raw_password=password):
+                raise AuthenticationFailed("pengguna atau password salah")
+            payload = {"user_id": user.id}
+            access_token = TokenManager().generate_token(payload=payload)
+            refresh_token = TokenManager().generate_refresh(payload=payload)
+            response = Response()
+            response.set_cookie(key="access_token", value=access_token, httponly=True)
+            response.set_cookie(key="refresh_token", value=refresh_token, httponly=True)
+            response.data = {
+                "jwt": access_token,
+            }
 
-        payload = {"id": user.id}
-        access_token = TokenManager().generate_token(payload=payload)
-        refresh_token = TokenManager().refresh_token(token=access_token)
-        response = Response()
-        response.set_cookie(key="access_token", value=access_token, httponly=True)
-        response.set_cookie(key="refresh_token", value=refresh_token, httponly=True)
-        response.data = {
-            "jwt": access_token,
-        }
+            return response
+        except Exception as e:
+            return JsonResponse({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+
+@api_view(["POST"])
+@validate_jwt_token
+def logout(request):
+    try:
+        response = JsonResponse({"jwt": ""})
+        response.delete_cookie("access_token")
+        response.delete_cookie("refresh_token")
         return response
-
-
-class LogutAuthUser(APIView):
-    def post(self, request):
-        response = Response()
-        response.set_cookie(key="access_token", value="", httponly=True)
-        response.set_cookie(key="refresh_token", value="", httponly=True)
-
-        response.data = {
-            "access_token": "",
-        }
-        return response
-
-
-# @api_view(["POST"])
-# def auth_user(request):
-#     username = request.data.get("username")
-#     password = request.data.get("password")
-#     try:
-#         user = User.objects.filter(
-#             username=username,
-#         )
-#     except User.DoesNotExist:
-#         return JsonResponse(
-#             {"error": "Username or password missing."}, status=status.HTTP_404_NOT_FOUND
-#         )
-
-#     try:
-#         if not username or not password:
-#             return JsonResponse(
-#                 {"message": "Username or password missing"},
-#                 status=status.HTTP_400_BAD_REQUEST,
-#             )
-
-#         serializer = AuthUserSerializer(user, many=True)
-#         hashed_password = hashlib.sha256(password.encode()).hexdigest()
-#         serialized_data = serializer.data
-#         password_from_serializer = serialized_data[0].get("password")
-#         print(password_from_serializer, hashed_password)
-#         if password_from_serializer == hashed_password:
-#             token_jwt = TokenManager().generate_token(
-#                 payload=serialized_data[0],
-#             )
-#             refresh_jwt = TokenManager().refresh_token(token_jwt)
-#             HttpResponse.set_cookie(key="access_token", value=token_jwt, httponly=True)
-#             return JsonResponse(
-#                 {"access_token": token_jwt, "refresh_token": refresh_jwt},
-#                 status=status.HTTP_200_OK,
-#             )
-#         else:
-#             return JsonResponse(
-#                 {"message": "User or password invalid."}, status=status.HTTP_200_OK
-#             )
-#     except User.DoesNotExist:
-#         return JsonResponse(
-#             {"message": "User or password invalid"}, status=status.HTTP_200_OK
-#         )
+    except Exception as e:
+        return JsonResponse({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["GET"])
+@validate_access_token
 def refresh_jwt(request):
     try:
-        token = request.GET.get("token")  # Get the value of the "token" query parameter
+        token = request.COOKIES.get(
+            "refresh_token"
+        )  # Get the value of the "refresh_token" cookie
         if not token:
             return JsonResponse(
-                {"message": "Please provide a token"},
+                {"message": "Please provide a refresh token"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        token_jwt = TokenManager().refresh_token(token=token)
-        return JsonResponse({"refresh_token": token_jwt}, status=status.HTTP_200_OK)
+        refresh_jwt = TokenManager().refresh_token(token=token)
+        if refresh_jwt:
+            refresh_key = os.environ.get("JWT_REFRESH_TOKEN_PRIVATE_KEY")
+            decoded_token = jwt.decode(refresh_jwt, refresh_key, algorithms=["HS256"])
+            if decoded_token:
+                payload = decoded_token.copy()
+                del payload["exp"]  # Remove the old expiration time
+                del payload["iat"]
+                access_token = TokenManager().generate_token(payload=payload)
+                if access_token:
+                    return JsonResponse(
+                        {"jwt": access_token}, status=status.HTTP_200_OK
+                    )
+                else:
+                    return JsonResponse(
+                        {"message": "Token expired, please re-authenticate"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            else:
+                return JsonResponse(
+                    {"message": "Token expired, please re-authenticate."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            return JsonResponse(
+                {"message": "Token expired, please re-authenticate."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
     except User.DoesNotExist:
         return JsonResponse(
             {"message": "User or password invalid"}, status=status.HTTP_200_OK
