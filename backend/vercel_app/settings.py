@@ -1,11 +1,12 @@
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+import dj_database_url
 
 load_dotenv()
-
 from supabase import create_client, Client
 from supabase.lib.client_options import ClientOptions
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -76,13 +77,17 @@ WSGI_APPLICATION = "vercel_app.wsgi.app"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql_psycopg2",
-        "NAME": os.environ.get("POSTGRES_DB_NAME"),
-        "USER": os.environ.get("POSTGRES_USER"),
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD"),
-        "HOST": os.environ.get("POSTGRES_HOST"),
-        "PORT": os.environ.get("POSTGRES_PORT"),
+        # "NAME": os.environ.get("POSTGRES_DB_NAME"),
+        # "USER": os.environ.get("POSTGRES_USER"),
+        # "PASSWORD": os.environ.get("POSTGRES_PASSWORD"),
+        # "HOST": os.environ.get("POSTGRES_HOST"),
+        # "PORT": os.environ.get("POSTGRES_PORT"),
     },
 }
+
+DATABASES["default"] = dj_database_url.parse(
+    os.environ.get("DATABASE_URL"), conn_max_age=600
+)
 
 
 # Password validation
