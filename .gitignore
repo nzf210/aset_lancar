@@ -1,4 +1,8 @@
 venv
 .env.prod
+.env.po
+.env.lo
 .env
 .github
+build_files.sh
+__pycache__/
