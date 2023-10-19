@@ -6,3 +6,4 @@ venv
 .github
 build_files.sh
 __pycache__/
+megarezst.code-workspace
